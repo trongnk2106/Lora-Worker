@@ -15,7 +15,7 @@ from app.src.v1.gte_embedding.gte import text_embedding as gte_text_embedding
 from app.src.v1.mistral_embeddings.mistral_embeddings import text_embedding as mistral_text_embedding
 
 
-def worker_lora_gemma(
+def worker_gemma_trainer(
     celery_task_id: str,
     celery_task_name: str,
     request_data: GemmaFinetuningRequest,

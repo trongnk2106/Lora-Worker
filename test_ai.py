@@ -1,18 +1,16 @@
-# from app.src.v1.lora_trainer_v1.lora_trainer import lora_trainer
-from app.src.v1.llm.text_completion import gemma_finetuning
-from app.src.v1.schemas.base import GemmaFinetuningRequest
-
+from app.src.v1.gemma_trainer.gemma_trainer import gemma_traner
+from app.src.v1.schemas.base import GemmaTrainerRequest
 
 if __name__=="__main__": 
     request_data = {
     "task_id": "123",
-    "data_path": "/workspace/parrot-host/train.jsonl",
+    "data_path": "/workspace/Lora-Worker/train.jsonl",
     "num_train_epochs": 1
     }
     print("training")
-    result = gemma_finetuning(
+    result = gemma_traner(
         celery_task_id="123",
-        request_data=GemmaFinetuningRequest(**request_data)
+        request_data=GemmaTrainerRequest(**request_data)
     )
 
 
