@@ -89,7 +89,6 @@ if "parrot_gemma_trainer_task" in ENABLED_TASKS:
         RESOURCE_CACHE["parrot_gemma_trainer_task"] = {}
         RESOURCE_CACHE["parrot_gemma_trainer_task"]["tokenizer"] =tokenizer
         RESOURCE_CACHE["parrot_gemma_trainer_task"]["model"] = model
-        # RESOURCE_CACHE["parrot_gemma_trainer_task"] = (tokenizer, model)
         print(f"[INFO] Load model gemma success.")
     except Exception as e:
         print(f"[ERROR] Load model gemma failed. An error occurred: {e}")
@@ -180,13 +179,11 @@ def run_gemma_trainer(data:str, num_train_epochs: int):
             args=training_arguments,
             packing=config_dict['packing'],
         )
-        print("here1")
         trainer.train()
-        print("here2")
         trainer.model.save_pretrained(output_dir)
-        print("here3")
     except Exception as e:
         print(f"[ERROR]: Error in Gemma trainer: {str(e)}")
+        
     os.system(f"zip -r {output_dir}.zip {output_dir}")
     output_paths = [os.path.join(output_dir, filename) for filename in os.listdir(output_dir)]
     [remove_documents(path) for path in output_paths]
