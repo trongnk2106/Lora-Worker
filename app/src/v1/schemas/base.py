@@ -3,6 +3,11 @@ from typing import Union, Any, List, Dict
 from pydantic import BaseModel, Field
 
 
+class GemmaFinetuningRequest(BaseModel):
+    task_id: str = Field(..., description="task_id")
+    data_path : str = Field(..., description="data")
+    num_train_epochs: int = Field(..., description="num_train_epochs")
+
 class LoraTrainnerRequest(BaseModel):
     task_id: str = Field(..., description="task_id")
     prompt: str = Field(..., description="prompt")

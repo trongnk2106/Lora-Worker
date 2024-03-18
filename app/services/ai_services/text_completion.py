@@ -10,7 +10,18 @@ sys.path.append('./app/services/ai_services/')
 sys.path[0] = './app/services/ai_services/'
 
 import torch
-from transformers import AutoTokenizer, pipeline, AutoModel
+from transformers import (AutoTokenizer, AutoModel,
+                        AutoModelForCausalLM,
+                        BitsAndBytesConfig,
+                        HfArgumentParser,
+                        TrainingArguments,
+                        logging,
+                        pipeline)
+
+from peft import LoraConfig, PeftModel
+from trl import SFTTrainer
+from datasets import load_dataset
+from app.utils.base import remove_documents
 
 # Register
 ENABLED_TASKS = os.environ.get('ENABLED_TASKS', '').split(',')
@@ -29,6 +40,49 @@ elif (torch.has_mps or torch.backends.mps.is_available()) and ALLOW_MPS:
 
 print(f"[INFO] Using device: {DEVICE}")
 
+config_dict = {
+    "num_train_epochs": 1,
+    "per_device_train_batch_size": 1,
+    "per_device_eval_batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "optim": "paged_adamw_32bit",
+    "save_steps": 1000,
+    "logging_steps": 100,
+    "learning_rate": 2e-4,
+    "weight_decay": 0.001,
+    "fp16": False,
+    "bf16": True,
+    "max_grad_norm": 0.3,
+    "max_steps": -1,
+    "warmup_ratio": 0.03,
+    "group_by_length": True,
+    "lr_scheduler_type": "constant",
+    "max_seq_length": 1024,
+    "packing": True
+}
+
+
+if "parrot_llm_gemma_lora_task" in ENABLED_TASKS:
+    print("test")
+    bnb_config = BitsAndBytesConfig(
+    load_in_4bit=True, # Activates 4-bit precision loading
+    bnb_4bit_quant_type="nf4", # nf4
+    bnb_4bit_compute_dtype="float16", # float16
+    bnb_4bit_use_double_quant=False, # False
+    )
+
+    hf_token = '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'
+    # if "parrot_llm_gemma_finetuning" in ENABLED_TASKS:
+    model_name = "google/gemma-7b-it"
+    tokenizer = AutoTokenizer.from_pretrained(model_name, token=hf_token)
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "right"
+    model = AutoModelForCausalLM.from_pretrained(model_name,
+                                quantization_config = bnb_config,
+                                device_map = "auto", token = hf_token)
+    RESOURCE_CACHE["parrot_llm_gemma_lora_task"] = {}
+    RESOURCE_CACHE["parrot_llm_gemma_lora_task"]["tokenizer"] =tokenizer
+    RESOURCE_CACHE["parrot_llm_gemma_lora_task"]["model"] = model
 
 if "parrot_llm_gemma_7b_task" in ENABLED_TASKS:
     print(f"[INFO] Loading Gemma 7B ...")
@@ -62,6 +116,69 @@ if "parrot_mistral_embeddings_task" in ENABLED_TASKS:
 
     RESOURCE_CACHE["parrot_mistral_embeddings_task"] = (tokenizer, model)
 
+def run_gemma_lora(data:str, num_train_epochs: int):
+    output_dir = "parrot_llm_gemma_finetuning"
+    try :
+        peft_config = LoraConfig(
+            lora_alpha=16,
+            lora_dropout=0.1,
+            r=64,
+            bias="none",
+            task_type="CAUSAL_LM",
+            target_modules=["q_proj", "k_proj", "v_proj", "o_proj","gate_proj", "up_proj"]
+        )
+        print("debug")
+        print(RESOURCE_CACHE["parrot_llm_gemma_finetuning"]["model"])
+        try : 
+          
+            dataset = load_dataset("json",data_files=data, split='train')
+        except: 
+            dataset = load_dataset("json",data_files=data)
+        print(dataset)
+        print(config_dict['num_train_epochs'] if num_train_epochs is None else num_train_epochs)
+        print("here0")
+        training_arguments = TrainingArguments(
+            output_dir=output_dir,
+            num_train_epochs=config_dict['num_train_epochs'] if num_train_epochs is None else num_train_epochs,
+            per_device_train_batch_size=config_dict['per_device_train_batch_size'],
+            gradient_accumulation_steps=config_dict['gradient_accumulation_steps'],
+            optim=config_dict['optim'],
+            save_steps=config_dict['save_steps'],
+            logging_steps=config_dict['logging_steps'],
+            learning_rate=config_dict['learning_rate'],
+            weight_decay=config_dict['weight_decay'],
+            fp16=config_dict['fp16'],
+            bf16=config_dict['bf16'],
+            max_grad_norm=config_dict['max_grad_norm'],
+            max_steps=config_dict['max_steps'],
+            warmup_ratio=config_dict['warmup_ratio'],
+            group_by_length=config_dict['group_by_length'],
+            lr_scheduler_type=config_dict['lr_scheduler_type'],
+            report_to="tensorboard",
+        )
+        
+        trainer = SFTTrainer(
+            model=RESOURCE_CACHE["parrot_llm_gemma_finetuning"]["model"],
+            train_dataset=dataset,
+            peft_config=peft_config,
+            dataset_text_field="text",
+            # formatting_func=format_prompts_fn,
+            max_seq_length=config_dict['max_seq_length'],
+            tokenizer=RESOURCE_CACHE["parrot_llm_gemma_finetuning"]["tokenizer"],
+            args=training_arguments,
+            packing=config_dict['packing'],
+        )
+        print("here1")
+        trainer.train()
+        print("here2")
+        trainer.model.save_pretrained(output_dir)
+        print("here3")
+    except Exception as e:
+        print(e)
+    os.system(f"zip -r {output_dir}.zip {output_dir}")
+    output_paths = [os.path.join(output_dir, filename) for filename in os.listdir(output_dir)]
+    [remove_documents(path) for path in output_paths]
+    return f"{output_dir}.zip"
 
 def run_mistral_embeddings(text: str, configs: dict):
 

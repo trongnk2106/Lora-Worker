@@ -51,5 +51,5 @@ torchmetrics
 encodec
 protobuf
 
-git+https://github.com/facebookresearch/audiocraft.git
+#git+https://github.com/facebookresearch/audiocraft.git
 
