@@ -18,7 +18,7 @@ def gemma_trainer(
     try :
         t0 = time.time()
         output_dir = run_gemma_trainer(
-            data = request_data.data_path,
+            data = request_data.data,
             num_train_epochs=request_data.num_train_epochs,   
         )
         t1 = time.time()
