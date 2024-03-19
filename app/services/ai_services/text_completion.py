@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 from torch import Tensor
 import torch.nn.functional as F
@@ -51,7 +52,6 @@ config_dict = {
     "per_device_eval_batch_size": 1,
     "gradient_accumulation_steps": 1,
     "optim": "paged_adamw_32bit",
-    "save_steps": 1000,
     "logging_steps": 100,
     "learning_rate": 2e-4,
     "weight_decay": 0.001,
@@ -63,7 +63,8 @@ config_dict = {
     "group_by_length": True,
     "lr_scheduler_type": "constant",
     "max_seq_length": 1024,
-    "packing": True
+    "packing": False,
+    "save_strategy": "no",
 }
 
 
@@ -75,16 +76,17 @@ if "parrot_gemma_lora_trainer_task" in ENABLED_TASKS:
             bnb_4bit_compute_dtype="float16", 
             bnb_4bit_use_double_quant=False, 
         )
-
-        hf_token = os.environ.get('HUGGINGFACE_API_KEY', "")
+        from huggingface_hub import login
+        login()
+        # hf_token = os.environ.get('HUGGINGFACE_API_KEY', "")
         model_name = "google/gemma-7b-it"
 
-        tokenizer = AutoTokenizer.from_pretrained(model_name, token=hf_token)
+        tokenizer = AutoTokenizer.from_pretrained(model_name, )
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.padding_side = "right"
         model = AutoModelForCausalLM.from_pretrained(model_name,
                                     quantization_config = bnb_config,
-                                    device_map = "auto", token = hf_token)
+                                    device_map = "auto", )
         
         RESOURCE_CACHE["parrot_gemma_lora_trainer_task"] = {}
         RESOURCE_CACHE["parrot_gemma_lora_trainer_task"]["tokenizer"] =tokenizer
@@ -125,7 +127,7 @@ if "parrot_mistral_embeddings_task" in ENABLED_TASKS:
     RESOURCE_CACHE["parrot_mistral_embeddings_task"] = (tokenizer, model)
 
 
-def run_gemma_trainer(data:str, num_train_epochs: int):
+def run_gemma_trainer(data:list[str], num_train_epochs: int):
     output_dir = "parrot_gemma_trainer"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -142,11 +144,6 @@ def run_gemma_trainer(data:str, num_train_epochs: int):
             task_type="CAUSAL_LM",
             target_modules=["q_proj", "k_proj", "v_proj", "o_proj","gate_proj", "up_proj"]
         )
-        # try : 
-        #     dataset = load_dataset("json",data_files=data, split='train')
-        # except: 
-        #     dataset = load_dataset("json",data_files=data)
-        
         try :
             dataset_dict = {"text" : data}
             dataset = Dataset.from_dict(dataset_dict)    
@@ -191,8 +188,7 @@ def run_gemma_trainer(data:str, num_train_epochs: int):
         print(f"[ERROR]: Error in Gemma trainer: {str(e)}")
         
     os.system(f"zip -r {output_dir}.zip {output_dir}")
-    output_paths = [os.path.join(output_dir, filename) for filename in os.listdir(output_dir)]
-    [remove_documents(path) for path in output_paths]
+    shutil.rmtree(output_dir)
     return f"{output_dir}.zip"
 
 
