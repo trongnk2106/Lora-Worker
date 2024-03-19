@@ -6,7 +6,7 @@ from app.services.ai_services.text_completion import run_gemma_trainer
 from app.src.v1.schemas.base import GemmaTrainerRequest, DoneGemmaTrainerRequest, UpdateStatusTaskRequest
 
 
-def gemma_traner(
+def gemma_trainer(
         celery_task_id: str,
         request_data: GemmaTrainerRequest,
 ):

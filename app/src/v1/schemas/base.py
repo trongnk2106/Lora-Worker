@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 class GemmaTrainerRequest(BaseModel):
     task_id: str = Field(..., description="task_id")
-    data_path : str = Field(..., description="data")
+    data : list[str] = Field(..., description="data")
     num_train_epochs: int = Field(..., description="num_train_epochs")
 
 

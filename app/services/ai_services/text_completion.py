@@ -20,7 +20,7 @@ from transformers import (AutoTokenizer, AutoModel,
 
 from peft import LoraConfig, PeftModel
 from trl import SFTTrainer
-from datasets import load_dataset
+from datasets import load_dataset, Dataset
 from app.utils.base import remove_documents
 import os
 from dotenv import load_dotenv
@@ -67,7 +67,7 @@ config_dict = {
 }
 
 
-if "parrot_gemma_trainer_task" in ENABLED_TASKS:
+if "parrot_gemma_lora_trainer_task" in ENABLED_TASKS:
     try: 
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True, 
@@ -86,9 +86,9 @@ if "parrot_gemma_trainer_task" in ENABLED_TASKS:
                                     quantization_config = bnb_config,
                                     device_map = "auto", token = hf_token)
         
-        RESOURCE_CACHE["parrot_gemma_trainer_task"] = {}
-        RESOURCE_CACHE["parrot_gemma_trainer_task"]["tokenizer"] =tokenizer
-        RESOURCE_CACHE["parrot_gemma_trainer_task"]["model"] = model
+        RESOURCE_CACHE["parrot_gemma_lora_trainer_task"] = {}
+        RESOURCE_CACHE["parrot_gemma_lora_trainer_task"]["tokenizer"] =tokenizer
+        RESOURCE_CACHE["parrot_gemma_lora_trainer_task"]["model"] = model
         print(f"[INFO] Load model gemma success.")
     except Exception as e:
         print(f"[ERROR] Load model gemma failed. An error occurred: {e}")
@@ -142,11 +142,17 @@ def run_gemma_trainer(data:str, num_train_epochs: int):
             task_type="CAUSAL_LM",
             target_modules=["q_proj", "k_proj", "v_proj", "o_proj","gate_proj", "up_proj"]
         )
-        try : 
-            dataset = load_dataset("json",data_files=data, split='train')
-        except: 
-            dataset = load_dataset("json",data_files=data)
+        # try : 
+        #     dataset = load_dataset("json",data_files=data, split='train')
+        # except: 
+        #     dataset = load_dataset("json",data_files=data)
         
+        try :
+            dataset_dict = {"text" : data}
+            dataset = Dataset.from_dict(dataset_dict)    
+        except:
+            print('formatting error')
+                
         training_arguments = TrainingArguments(
             output_dir=output_dir,
             num_train_epochs=config_dict['num_train_epochs'] if num_train_epochs is None else num_train_epochs,
@@ -169,13 +175,13 @@ def run_gemma_trainer(data:str, num_train_epochs: int):
         
         
         trainer = SFTTrainer(
-            model=RESOURCE_CACHE["parrot_gemma_trainer_task"]["model"],
+            model=RESOURCE_CACHE["parrot_gemma_lora_trainer_task"]["model"],
             train_dataset=dataset,
             peft_config=peft_config,
             dataset_text_field="text",
             # formatting_func=format_prompts_fn,
             max_seq_length=config_dict['max_seq_length'],
-            tokenizer=RESOURCE_CACHE["parrot_gemma_trainer_task"]["tokenizer"],
+            tokenizer=RESOURCE_CACHE["parrot_gemma_lora_trainer_task"]["tokenizer"],
             args=training_arguments,
             packing=config_dict['packing'],
         )
