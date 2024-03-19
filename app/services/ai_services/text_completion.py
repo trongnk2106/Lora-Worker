@@ -22,6 +22,11 @@ from peft import LoraConfig, PeftModel
 from trl import SFTTrainer
 from datasets import load_dataset
 from app.utils.base import remove_documents
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 # Register
 ENABLED_TASKS = os.environ.get('ENABLED_TASKS', '').split(',')
@@ -62,27 +67,31 @@ config_dict = {
 }
 
 
-if "parrot_llm_gemma_lora_task" in ENABLED_TASKS:
-    print("test")
-    bnb_config = BitsAndBytesConfig(
-    load_in_4bit=True, # Activates 4-bit precision loading
-    bnb_4bit_quant_type="nf4", # nf4
-    bnb_4bit_compute_dtype="float16", # float16
-    bnb_4bit_use_double_quant=False, # False
-    )
+if "parrot_gemma_trainer_task" in ENABLED_TASKS:
+    try: 
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True, 
+            bnb_4bit_quant_type="nf4", 
+            bnb_4bit_compute_dtype="float16", 
+            bnb_4bit_use_double_quant=False, 
+        )
 
-    hf_token = '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'
-    # if "parrot_llm_gemma_finetuning" in ENABLED_TASKS:
-    model_name = "google/gemma-7b-it"
-    tokenizer = AutoTokenizer.from_pretrained(model_name, token=hf_token)
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "right"
-    model = AutoModelForCausalLM.from_pretrained(model_name,
-                                quantization_config = bnb_config,
-                                device_map = "auto", token = hf_token)
-    RESOURCE_CACHE["parrot_llm_gemma_lora_task"] = {}
-    RESOURCE_CACHE["parrot_llm_gemma_lora_task"]["tokenizer"] =tokenizer
-    RESOURCE_CACHE["parrot_llm_gemma_lora_task"]["model"] = model
+        hf_token = os.environ.get('HUGGINGFACE_API_KEY', "")
+        model_name = "google/gemma-7b-it"
+
+        tokenizer = AutoTokenizer.from_pretrained(model_name, token=hf_token)
+        tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.padding_side = "right"
+        model = AutoModelForCausalLM.from_pretrained(model_name,
+                                    quantization_config = bnb_config,
+                                    device_map = "auto", token = hf_token)
+        
+        RESOURCE_CACHE["parrot_gemma_trainer_task"] = {}
+        RESOURCE_CACHE["parrot_gemma_trainer_task"]["tokenizer"] =tokenizer
+        RESOURCE_CACHE["parrot_gemma_trainer_task"]["model"] = model
+        print(f"[INFO] Load model gemma success.")
+    except Exception as e:
+        print(f"[ERROR] Load model gemma failed. An error occurred: {e}")
 
 if "parrot_llm_gemma_7b_task" in ENABLED_TASKS:
     print(f"[INFO] Loading Gemma 7B ...")
@@ -97,7 +106,6 @@ if "parrot_llm_gemma_7b_task" in ENABLED_TASKS:
     RESOURCE_CACHE["parrot_llm_gemma-7b_task"] = {}
     RESOURCE_CACHE["parrot_llm_gemma-7b_task"]["tokenizer"] = tokenizer
     RESOURCE_CACHE["parrot_llm_gemma-7b_task"]["pipeline"] = pipeline_chat
-
 
 if "parrot_gte_task" in ENABLED_TASKS:
     print(f"[INFO] Loading GTE model ...")
@@ -116,8 +124,15 @@ if "parrot_mistral_embeddings_task" in ENABLED_TASKS:
 
     RESOURCE_CACHE["parrot_mistral_embeddings_task"] = (tokenizer, model)
 
-def run_gemma_lora(data:str, num_train_epochs: int):
-    output_dir = "parrot_llm_gemma_finetuning"
+
+def run_gemma_trainer(data:str, num_train_epochs: int):
+    output_dir = "parrot_gemma_trainer"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        print(f"Created directory: {output_dir}")
+    else: 
+        print(f"Directory {output_dir} already exists")
+
     try :
         peft_config = LoraConfig(
             lora_alpha=16,
@@ -127,16 +142,11 @@ def run_gemma_lora(data:str, num_train_epochs: int):
             task_type="CAUSAL_LM",
             target_modules=["q_proj", "k_proj", "v_proj", "o_proj","gate_proj", "up_proj"]
         )
-        print("debug")
-        print(RESOURCE_CACHE["parrot_llm_gemma_finetuning"]["model"])
         try : 
-          
             dataset = load_dataset("json",data_files=data, split='train')
         except: 
             dataset = load_dataset("json",data_files=data)
-        print(dataset)
-        print(config_dict['num_train_epochs'] if num_train_epochs is None else num_train_epochs)
-        print("here0")
+        
         training_arguments = TrainingArguments(
             output_dir=output_dir,
             num_train_epochs=config_dict['num_train_epochs'] if num_train_epochs is None else num_train_epochs,
@@ -157,28 +167,28 @@ def run_gemma_lora(data:str, num_train_epochs: int):
             report_to="tensorboard",
         )
         
+        
         trainer = SFTTrainer(
-            model=RESOURCE_CACHE["parrot_llm_gemma_finetuning"]["model"],
+            model=RESOURCE_CACHE["parrot_gemma_trainer_task"]["model"],
             train_dataset=dataset,
             peft_config=peft_config,
             dataset_text_field="text",
             # formatting_func=format_prompts_fn,
             max_seq_length=config_dict['max_seq_length'],
-            tokenizer=RESOURCE_CACHE["parrot_llm_gemma_finetuning"]["tokenizer"],
+            tokenizer=RESOURCE_CACHE["parrot_gemma_trainer_task"]["tokenizer"],
             args=training_arguments,
             packing=config_dict['packing'],
         )
-        print("here1")
         trainer.train()
-        print("here2")
         trainer.model.save_pretrained(output_dir)
-        print("here3")
     except Exception as e:
-        print(e)
+        print(f"[ERROR]: Error in Gemma trainer: {str(e)}")
+        
     os.system(f"zip -r {output_dir}.zip {output_dir}")
     output_paths = [os.path.join(output_dir, filename) for filename in os.listdir(output_dir)]
     [remove_documents(path) for path in output_paths]
     return f"{output_dir}.zip"
+
 
 def run_mistral_embeddings(text: str, configs: dict):
 

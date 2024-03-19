@@ -1,11 +1,5 @@
-
-from app.src.v1.llm.text_completion import gemma_finetuning
-from app.src.v1.schemas.base import LLMRequest, DoneLLMRequest, LoraTrainnerRequest,\
-    UpdateStatusTaskRequest, SendProgressTaskRequest, DoneLoraTrainnerRequest, \
-    GemmaFinetuningRequest
 import os 
-
-from datasets import load_dataset, Dataset
+from datasets import Dataset
 import json
 import pandas as pd
 
@@ -72,7 +66,7 @@ if __name__ =='__main__':
     print(root_dir)
     request_data = {
     "task_id": "123",
-    "data_path": "/workspace/parrot-host/ai_data_1.json",
+    "data_path": "ai_data_1.json",
     "num_train_epochs": 1
 }
     
