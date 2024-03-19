@@ -23,7 +23,7 @@ Path("resources/input/images").mkdir(parents=True, exist_ok=True)
 Path("resources/output/images").mkdir(parents=True, exist_ok=True)
 
 
-def parrot_gemma_trainer_task(self, request_data):
+def parrot_gemma_lora_trainer_task(self, request_data):
     result = None
     try:
         result = worker_gemma_trainer(

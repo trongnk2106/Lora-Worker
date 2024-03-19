@@ -4,7 +4,7 @@ from app.src.v1.schemas.base import GemmaTrainerRequest
 if __name__=="__main__": 
     request_data = {
     "task_id": "123",
-    "data_path": "/workspace/Lora-Worker/train.jsonl",
+    "data": ["data1", "data2", "data3", "data4", "data5"],
     "num_train_epochs": 1
     }
     print("training")
